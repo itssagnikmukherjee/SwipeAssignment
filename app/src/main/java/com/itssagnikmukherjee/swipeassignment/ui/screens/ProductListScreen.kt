@@ -267,7 +267,8 @@ fun ProductListScreen(
                             Icon(
                                 imageVector = Icons.Default.Check,
                                 contentDescription = null,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(18.dp),
+                                tint = Color.White
                             )
                         }
                     } else null,
