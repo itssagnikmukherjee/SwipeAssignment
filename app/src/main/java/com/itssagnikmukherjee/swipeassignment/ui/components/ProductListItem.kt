@@ -58,6 +58,7 @@ import okhttp3.internal.format
 fun ProductListItem(
     modifier: Modifier = Modifier,
     product: ProductResponse,
+    isPending: Boolean = false,
     isSelected: Boolean = false,
     qtyCount: Int = 0,
     onIncrement: (ProductResponse) -> Unit = {},
@@ -112,14 +113,25 @@ fun ProductListItem(
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 // Product Name
-                Text(
-                    text = product.product_name,
-                    style = swipeTypography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    lineHeight = 21.sp,
-                    fontWeight = FontWeight.Medium
-                )
+                Row (
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ){
+                    Text(
+                        text = product.product_name,
+                        style = swipeTypography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 21.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    if(isPending) {
+                        Box(modifier = Modifier.padding(horizontal = 6.dp).background(Color.Black, shape = RoundedCornerShape(4.dp))) {
+                            Text("Pending", style = swipeTypography.bodySmall, color = Color.White,modifier = Modifier.padding(horizontal = 4.dp))
+                        }
+                    }
+                }
 
                 // Product Type and Tax
                 Row(

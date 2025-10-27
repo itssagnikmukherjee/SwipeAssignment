@@ -314,10 +314,12 @@ fun ProductListScreen(
                     items(filteredProducts) { product ->
                         val count = selectedProducts[product.product_name] ?: 0
                         val isSelected = count > 0
+                        val isPending = state.pendingProducts.any { it.productName == product.product_name }
                         ProductListItem(
                             product = product,
                             isSelected = isSelected,
                             qtyCount = count,
+                            isPending = isPending,
                             onIncrement = { prod ->
                                 selectedProducts = selectedProducts.toMutableMap().apply {
                                     put(prod.product_name, (get(prod.product_name) ?: 0) + 1)

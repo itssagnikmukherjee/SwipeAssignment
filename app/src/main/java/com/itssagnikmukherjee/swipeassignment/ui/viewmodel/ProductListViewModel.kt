@@ -11,6 +11,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.itssagnikmukherjee.swipeassignment.data.local.tables.PendingProduct
 import com.itssagnikmukherjee.swipeassignment.domain.models.ProductResponse
 import com.itssagnikmukherjee.swipeassignment.domain.repo.ProductRepo
 import com.itssagnikmukherjee.swipeassignment.ui.screens.ProductListScreen
@@ -45,7 +46,6 @@ class ProductListViewModel(
     private fun observeConnectivity() {
         viewModelScope.launch {
             connectivityObserver.observe()
-                .debounce(1000)
                 .collect { status ->
                     val isOnline = status == ConnectivityObserver.Status.AVAILABLE
                     _state.value = _state.value.copy(isOnline = isOnline)
@@ -69,26 +69,38 @@ class ProductListViewModel(
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true)
             val response = repo.getProducts()
-            if (response.isSuccessful) {
-                val products = response.body() ?: emptyList()
-
-                val categories = listOf("All") + products
-                    .map { it.product_type }
-                    .distinct()
-                    .sorted()
-
-                _state.value = _state.value.copy(
-                    isLoading = false,
-                    products = products,
-                    categories = categories,
-                    error = null
-                )
+            val cachedProducts = if (response.isSuccessful) {
+                response.body() ?: emptyList()
             } else {
-                _state.value = _state.value.copy(
-                    isLoading = false,
-                    error = "Failed to load products"
+                emptyList()
+            }
+
+            val pendingProducts = repo.getPendingProductsList()
+
+            val pendingAsProductResponse = pendingProducts.map { pending ->
+                ProductResponse(
+                    image = pending.imageUri,
+                    price = pending.price.toDoubleOrNull() ?: 0.0,
+                    product_name = pending.productName,
+                    product_type = pending.productType,
+                    tax = pending.tax.toDoubleOrNull() ?: 0.0
                 )
             }
+
+            val allProducts = (pendingAsProductResponse + cachedProducts).distinctBy { it.product_name }
+
+            val categories = listOf("All") + allProducts
+                .map { it.product_type }
+                .distinct()
+                .sorted()
+
+            _state.value = _state.value.copy(
+                isLoading = false,
+                products = allProducts,
+                pendingProducts = pendingProducts,
+                categories = categories,
+                error = if (response.isSuccessful) null else "Failed to load products"
+            )
         }
     }
 
@@ -160,6 +172,7 @@ data class ProductListState(
     val isSyncing: Boolean = false,
     val isOnline: Boolean = true,
     val products: List<ProductResponse> = emptyList(),
+    val pendingProducts: List<PendingProduct> = emptyList(),
     val categories: List<String> = emptyList(),
     val error: String? = null,
     val syncMessage: String? = null

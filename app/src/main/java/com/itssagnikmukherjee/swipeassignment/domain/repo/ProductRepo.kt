@@ -13,6 +13,7 @@ import com.itssagnikmukherjee.swipeassignment.domain.models.ProductResponse
 import com.itssagnikmukherjee.swipeassignment.utils.NetworkConnectivityObserver
 import com.itssagnikmukherjee.swipeassignment.utils.SyncStatus
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.Mutex
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -49,6 +50,10 @@ class ProductRepo(
         } else {
             getCachedProductsAsResponse()
         }
+    }
+
+    suspend fun getPendingProductsList(): List<PendingProduct> {
+        return pendingProductDao.getPendingProductsList()
     }
 
     private suspend fun getCachedProductsAsResponse(): Response<List<ProductResponse>> {
@@ -114,6 +119,7 @@ class ProductRepo(
     }
 
     // Sync pending products
+    val mutex = Mutex()
     suspend fun syncPendingProducts(context: Context): Result<Int> {
         if (!connectivityObserver.isConnected()) {
             return Result.failure(Exception("No internet connection"))
@@ -123,31 +129,37 @@ class ProductRepo(
         var successCount = 0
         var failCount = 0
 
-        pendingProducts.forEach { pending ->
+        if(mutex.tryLock()) {
             try {
-                pendingProductDao.updateSyncStatus(pending.id, SyncStatus.SYNCING)
+                pendingProducts.forEach { pending ->
+                    try {
+                        pendingProductDao.updateSyncStatus(pending.id, SyncStatus.SYNCING)
 
-                val imageUri = pending.imageUri?.let { Uri.parse(it) }
-                val response = uploadProductToServer(
-                    name = pending.productName,
-                    type = pending.productType,
-                    price = pending.price,
-                    tax = pending.tax,
-                    imageUri = imageUri,
-                    context = context
-                )
+                        val imageUri = pending.imageUri?.let { Uri.parse(it) }
+                        val response = uploadProductToServer(
+                            name = pending.productName,
+                            type = pending.productType,
+                            price = pending.price,
+                            tax = pending.tax,
+                            imageUri = imageUri,
+                            context = context
+                        )
 
-                if (response.isSuccessful) {
-                    pendingProductDao.deletePendingProduct(pending.id)
-                    successCount++
-                } else {
-                    pendingProductDao.updateSyncStatus(pending.id, SyncStatus.FAILED)
-                    failCount++
+                        if (response.isSuccessful) {
+                            pendingProductDao.deletePendingProduct(pending.id)
+                            successCount++
+                        } else {
+                            pendingProductDao.updateSyncStatus(pending.id, SyncStatus.FAILED)
+                            failCount++
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        pendingProductDao.updateSyncStatus(pending.id, SyncStatus.FAILED)
+                        failCount++
+                    }
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                pendingProductDao.updateSyncStatus(pending.id, SyncStatus.FAILED)
-                failCount++
+            }finally {
+                mutex.unlock()
             }
         }
 
